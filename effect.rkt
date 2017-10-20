@@ -48,7 +48,8 @@
   (syntax-rules (let <-)
     [(_ x) x]
     [(_ let x v s ...) (let ([x v]) (do s ...))]
-    [(_ x <- v s ...) (>>= v (λ (x) (do s ...)))]))
+    [(_ x <- v s ...) (>>= v (λ (x) (do s ...)))]
+    [(_ v s ...) (>>= v (λ (x) (do s ...)))]))
 (define (amb) (op 'amb '()))
 (define ambh (handlev (set 'amb) (λ (s x) (list x))
                       (λ (s x cb)
@@ -56,8 +57,21 @@
                             s1 <- (cb s #t)
                           s2 <- (cb s #f)
                           (return (append s1 s2))))))
-(run0 (run ambh '() (do
-                        x <- (amb)
-                      (if x
-                          (return 0)
-                          (return 1)))))
+(define (put x) (op 'put x))
+(define (get) (op 'get '()))
+(define state (handlev (set 'get 'put) (λ (s x) (cons s x))
+                       (λ (s x cb)
+                         (if (eq? (op-op x) 'get)
+                             (cb s s)
+                             (let ([ns (op-v x)])
+                               (cb ns '()))))))
+(define (update f)
+  (do
+      s <- (get)
+    (put (f s))))
+(run0 (run ambh '() (run state 5 (do
+                                     x <- (amb)
+                                   (update (λ (x) (+ x 1)))
+                                   (if x
+                                       (return 0)
+                                       (return 1))))))
