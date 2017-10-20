@@ -50,18 +50,6 @@
     [(_ let x v s ...) (let ([x v]) (do s ...))]
     [(_ x <- v s ...) (>>= v (λ (x) (do s ...)))]
     [(_ v s ...) (>>= v (λ (x) (do s ...)))]))
-(define (put x) (op 'put x))
-(define (get) (op 'get '()))
-(define state (handlev (set 'get 'put) (λ (s x) (cons s x))
-                       (λ (s x cb)
-                         (if (eq? (op-op x) 'get)
-                             (cb s s)
-                             (let ([ns (op-v x)])
-                               (cb ns '()))))))
-(define (update f)
-  (do
-      s <- (get)
-    (put (f s))))
 (define-syntax effect
   (syntax-rules ()
     [(_) (void)]
@@ -98,6 +86,7 @@
          (run h '() value)))]))
 (define-syntax-rule (define-handle f x ...)
   (define f (handle x ...)))
+
 (effect
  (amb))
 (define-handle runamb remuse
@@ -106,10 +95,29 @@
              s1 <- (remuse #t)
            s2 <- (remuse #f)
            (return (append s1 s2)))])
-(run0 (runamb (run state 5 (do
-                               x <- (amb)
-                             (amb)
-                             (update (λ (x) (+ x 1)))
-                             (if x
-                                 (return 0)
-                                 (return 1))))))
+
+(effect
+ (put x)
+ (get))
+(define-handle state s remuse
+  [(return x) (cons s x)]
+  [(get) (remuse s s)]
+  [(put x) (remuse x '())])
+(define (update f)
+  (do
+      s <- (get)
+    (put (f s))))
+
+(effect
+ (throw x))
+(define (catch f v)
+  ((handle remuse
+          [(return x) x]
+          [(throw x) (return (f x))]) v))
+(run0 (runamb (state 5 (do
+                           x <- (amb)
+                         (amb)
+                         (update (λ (x) (+ x 1)))
+                         (if x
+                             (return 0)
+                             (return 1))))))
