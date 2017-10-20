@@ -14,27 +14,50 @@
 ;;  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #lang racket
-(require racket/hash)
-
-(struct op (effect op args))
-(struct handlev (id effects ret bind))
+(module s racket
+  (provide (rename-out [structt struct]))
+  (define-syntax-rule (structt x ...)
+    (struct x ... #:transparent)))
+(require 's)
+(struct op (op v))
+(struct handlev (ops ret bind))
 (struct >>= (x f))
+(struct return (v))
 
-(define (%run-handle h s x f)
+(define (run h s x)
   (cond
-    [(>>=? x)
-     (%run-handle h s (>>=-x x)
-                  (λ (s2 x2 f2)
-                    (f2 s2 (%run-handle h s2 ((>>=-f x) s2 x2) f))))]
-    [(op? x)
-     (if (set-member? (handlev-effects h) (op-effect x))
-         ((handlev-bind h) s x f)
-         (>>= x (λ (s2 x2)
-                  (f (hash-union s s2) x2 (λ (x) x)))))]
-    [else (f s x (λ (x) x))]))
-
-(define es (hash 0 '()))
-(define amb (handlev 0 (set 'amb) (λ (x) (list x)) (λ (s x f) (append (f s #t (λ (x) x)) (f s #f (λ (x) x))))))
-(define tf (op 'amb 'tf '()))
-
-(%run-handle amb es (>>= tf (λ (s x) (not x))) (handlev-ret amb))
+    [(op? x) (%run h s x return)]
+    [(>>=? x) (%run h s (>>=-x x) (>>=-f x))]
+    [(return? x) (return ((handlev-ret h) s (return-v x)))]))
+(define (%run h s x f)
+  (cond
+    [(op? x) (if (set-member? (handlev-ops h) (op-op x))
+                 ((handlev-bind h) s x (λ (s1 x1) (run h s1 (f x1))))
+                 (>>= x (λ (x1) (run h s (f x1)))))]
+    [(>>=? x) (%run h s (>>=-x x) (λ (x1) (>>= ((>>=-f x) x1) f)))]
+    [(return? x) (run h s (f (return-v x)))]))
+(define (run0 x)
+  (if (>>=? x)
+      (let ([x1 (run0 (>>=-x x))])
+        (if (return? x1)
+            (run0 ((>>=-f x) (return-v x1)))
+            (>>= x1 (>>=-f x))))
+      x))
+(define (out x) (return-v (run0 x)))
+(define-syntax do
+  (syntax-rules (let <-)
+    [(_ x) x]
+    [(_ let x v s ...) (let ([x v]) (do s ...))]
+    [(_ x <- v s ...) (>>= v (λ (x) (do s ...)))]))
+(define (amb) (op 'amb '()))
+(define ambh (handlev (set 'amb) (λ (s x) (list x))
+                      (λ (s x cb)
+                        (do
+                            s1 <- (cb s #t)
+                          s2 <- (cb s #f)
+                          (return (append s1 s2))))))
+(run0 (run ambh '() (do
+                        x <- (amb)
+                      (if x
+                          (return 0)
+                          (return 1)))))
