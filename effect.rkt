@@ -114,7 +114,7 @@
   ((handle remuse
           [(return x) x]
           [(throw x) (return (f x))]) v))
-(run0 (runamb (state 5 (do
+(out (runamb (state 5 (do
                            x <- (amb)
                          (amb)
                          (update (λ (x) (+ x 1)))
