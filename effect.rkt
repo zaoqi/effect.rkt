@@ -50,13 +50,6 @@
     [(_ let x v s ...) (let ([x v]) (do s ...))]
     [(_ x <- v s ...) (>>= v (λ (x) (do s ...)))]
     [(_ v s ...) (>>= v (λ (x) (do s ...)))]))
-(define (amb) (op 'amb '()))
-(define ambh (handlev (set 'amb) (λ (s x) (list x))
-                      (λ (s x cb)
-                        (do
-                            s1 <- (cb s #t)
-                          s2 <- (cb s #f)
-                          (return (append s1 s2))))))
 (define (put x) (op 'put x))
 (define (get) (op 'get '()))
 (define state (handlev (set 'get 'put) (λ (s x) (cons s x))
@@ -69,9 +62,54 @@
   (do
       s <- (get)
     (put (f s))))
-(run0 (run ambh '() (run state 5 (do
-                                     x <- (amb)
-                                   (update (λ (x) (+ x 1)))
-                                   (if x
-                                       (return 0)
-                                       (return 1))))))
+(define-syntax effect
+  (syntax-rules ()
+    [(_) (void)]
+    [(_ (o x ...) s ...)
+     (begin
+       (define (o x ...) (op (quote o) (list x ...)))
+       (effect s ...))]))
+(define-syntax handle
+  (syntax-rules (return)
+    [(_ state
+        remuse
+        [(return retx) rete]
+        [(opn x ...) opv] ...)
+     (let ([h (handlev (set (quote opn) ...)
+                       (λ (state retx) rete)
+                       (λ (state opx remuse)
+                         (let ([o (op-op opx)])
+                           (cond
+                             [(eq? o (quote opn)) (apply (λ (x ...) opv) (op-v opx))] ...
+                             [else (error 'handle)]))))])
+       (λ (empty-state value)
+         (run h empty-state value)))]
+    [(_ remuse
+        [(return retx) rete]
+        [(opn x ...) opv] ...)
+     (let ([h (handlev (set (quote opn) ...)
+                       (λ (state retx) rete)
+                       (λ (state opx remuse0)
+                         (let ([o (op-op opx)] [remuse (λ (cbv) (remuse0 state cbv))])
+                           (cond
+                             [(eq? o (quote opn)) (apply (λ (x ...) opv) (op-v opx))] ...
+                             [else (error 'handle)]))))])
+       (λ (value)
+         (run h '() value)))]))
+(define-syntax-rule (define-handle f x ...)
+  (define f (handle x ...)))
+(effect
+ (amb))
+(define-handle runamb remuse
+  [(return x) (list x)]
+  [(amb) (do
+             s1 <- (remuse #t)
+           s2 <- (remuse #f)
+           (return (append s1 s2)))])
+(run0 (runamb (run state 5 (do
+                               x <- (amb)
+                             (amb)
+                             (update (λ (x) (+ x 1)))
+                             (if x
+                                 (return 0)
+                                 (return 1))))))
