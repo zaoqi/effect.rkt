@@ -37,6 +37,3 @@
       #f
       (or (equal? (car xs) x)
           (set-member? (cdr xs) x))))
-(load "micro-effect.scm")
-(load "mini-effect.scm")
-(load "effects.scm")
