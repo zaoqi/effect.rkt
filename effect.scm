@@ -25,6 +25,6 @@
   (return v)
   return?
   (v return-v))
-(include "micro-effect.scm")
-(include "mini-effect.scm")
-(include "effects.scm")
+(load "micro-effect.scm")
+(load "mini-effect.scm")
+(load "effects.scm")
