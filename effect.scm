@@ -13,8 +13,9 @@
 ;;  You should have received a copy of the GNU Affero General Public License
 ;;  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 (define-record-type op
-  (op v)
+  (op op v)
   op?
+  (op op-op)
   (v op-v))
 (define-record-type >>=
   (>>= x f)
