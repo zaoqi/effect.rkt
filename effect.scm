@@ -25,6 +25,18 @@
   (return v)
   return?
   (v return-v))
+(define-record-type handlev
+  (handlev ops ret bind)
+  handlev?
+  (ops handlev-ops)
+  (ret handlev-ret)
+  (bind handlev-bind))
+(define (set . xs) xs)
+(define (set-member? xs x)
+  (if (null? xs)
+      #f
+      (or (equal? (car xs) x)
+          (set-member? (cdr xs) x))))
 (load "micro-effect.scm")
 (load "mini-effect.scm")
 (load "effects.scm")
