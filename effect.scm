@@ -12,24 +12,19 @@
 
 ;;  You should have received a copy of the GNU Affero General Public License
 ;;  along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-#lang racket
-(module s racket
-  (provide (rename-out [structt struct]))
-  (define-syntax-rule (structt x ...)
-    (struct x ... #:transparent)))
-(require 's)
-(struct op (op v))
-(struct handlev (ops ret bind))
-(struct >>= (x f))
-(struct return (v))
+(define-record-type op
+  (op v)
+  op?
+  (v op-v))
+(define-record-type >>=
+  (>>= x f)
+  >>=?
+  (x >>=-x)
+  (f >>=-f))
+(define-record-type return
+  (return v)
+  return?
+  (v return-v))
 (include "micro-effect.scm")
 (include "mini-effect.scm")
 (include "effects.scm")
-;(out (runamb (state 5 (do
-;                         x <- (amb)
-;                         (amb)
-;                         (update (λ (x) (+ x 1)))
-;                         (if x
-;                             (return 0)
-;                             (return 1))))))

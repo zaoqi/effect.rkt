@@ -13,23 +13,30 @@
 ;;  You should have received a copy of the GNU Affero General Public License
 ;;  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#lang racket
-(module s racket
-  (provide (rename-out [structt struct]))
-  (define-syntax-rule (structt x ...)
-    (struct x ... #:transparent)))
-(require 's)
-(struct op (op v))
-(struct handlev (ops ret bind))
-(struct >>= (x f))
-(struct return (v))
-(include "micro-effect.scm")
-(include "mini-effect.scm")
-(include "effects.scm")
-;(out (runamb (state 5 (do
-;                         x <- (amb)
-;                         (amb)
-;                         (update (λ (x) (+ x 1)))
-;                         (if x
-;                             (return 0)
-;                             (return 1))))))
+(effect
+ (amb))
+(define-handle runamb remuse
+  [(return x) (list x)]
+  [(amb) (do
+             s1 <- (remuse #t)
+           s2 <- (remuse #f)
+           (return (append s1 s2)))])
+
+(effect
+ (put x)
+ (get))
+(define-handle state s remuse
+  [(return x) (cons s x)]
+  [(get) (remuse s s)]
+  [(put x) (remuse x '())])
+(define (update f)
+  (do
+      s <- (get)
+    (put (f s))))
+
+(effect
+ (throw x))
+(define (catch f v)
+  ((handle remuse
+          [(return x) x]
+          [(throw x) (return (f x))]) v))
